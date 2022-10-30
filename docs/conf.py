@@ -61,6 +61,7 @@ extensions = [
     "sphinx_immaterial.apidoc.cpp.apigen",
     "sphinx_immaterial.graphviz",
     "sphinx_jinja",
+    "sphinx_design",
 ]
 
 intersphinx_mapping = {

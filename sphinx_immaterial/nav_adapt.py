@@ -143,6 +143,7 @@ from typing import (
     Iterable,
     Set,
 )
+from html.parser import HTMLParser
 import urllib.parse
 import docutils.nodes
 import markupsafe
@@ -178,6 +179,38 @@ def _insert_wbr(text: str) -> str:
     return text
 
 
+class HTMLTitleParser(HTMLParser):
+    """A parser class to inject ``wbr`` tags in only the text data from a line that may
+    have raw HTML."""
+
+    def __init__(self, *, convert_charrefs: bool = False) -> None:
+        super().__init__(convert_charrefs=convert_charrefs)
+        self._in_tag: List[Tuple[str, Optional[int]]] = []
+        self.parsed_data = ""
+
+    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]):
+        # if we are already in a tag, then use None to skip duplicate copies of
+        # any inner elements as they'll be copied when the outermost tag is closed
+        curr_pos = self.getpos()[1] if not self._in_tag else None
+        self._in_tag.append((tag, curr_pos))
+
+    def handle_endtag(self, tag: str):
+        curr_pos = self.getpos()[1]
+        if self._in_tag[-1][1] is not None:
+            self.parsed_data += self.rawdata[self._in_tag[-1][1] : curr_pos]
+            if not self.parsed_data.endswith("/>"):
+                self.parsed_data += f"</{tag}>"
+        self._in_tag.pop()
+
+    def handle_data(self, data):
+        # handle injection of <wbr> tags here
+        self.parsed_data += _insert_wbr(data)
+
+    def error(self, message):
+        """abstract method only for python v3.9 or earlier (from ParserBase class)"""
+        raise OSError(message)
+
+
 class MkdocsNavEntry:
     # Title to display, as HTML.
     title: str
@@ -205,7 +238,10 @@ class MkdocsNavEntry:
 
     def __init__(self, title_text: str, **kwargs):
         self.__dict__.update(kwargs)
-        self.title = f'<span class="md-ellipsis">{_insert_wbr(title_text)}</span>'
+        extractor = HTMLTitleParser()
+        extractor.feed(title_text)
+        extractor.close()
+        self.title = f'<span class="md-ellipsis">{extractor.parsed_data}</span>'
         if not self.aria_label:
             self.aria_label = title_text
 
@@ -241,7 +277,13 @@ class _TocVisitor(docutils.nodes.NodeVisitor):
         """Returns the text representation of `node`."""
         if not isinstance(node, list):
             node = [node]
-        return str(markupsafe.Markup.escape("".join(x.astext() for x in node)))
+        title_nodes = []
+        for n in list(node):
+            if isinstance(n, docutils.nodes.raw):
+                title_nodes.append(self._builder.render_partial(n)["fragment"])
+            else:
+                title_nodes.append(markupsafe.Markup.escape(n.astext()))
+        return str("".join(title_nodes))
 
     def visit_reference(self, node: docutils.nodes.reference):
         self._rendered_title_text = self._render_title(node.children)

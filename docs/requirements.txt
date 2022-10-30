@@ -1,3 +1,4 @@
 sphinx_immaterial[json,clang-format,keys,cpp]
 sphinxcontrib-details-directive
 sphinx-jinja
+sphinx-design

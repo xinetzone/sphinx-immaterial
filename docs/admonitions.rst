@@ -1,6 +1,6 @@
 
-Admonitions
-===========
+:octicon:`alert` Admonitions
+============================
 
 This theme uses the :dutree:`admonition` directives for Sphinx admonitions.
 
