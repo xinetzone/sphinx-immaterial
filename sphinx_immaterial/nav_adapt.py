@@ -286,27 +286,29 @@ class _TocVisitor(docutils.nodes.NodeVisitor):
         raise docutils.nodes.SkipChildren
 
     def visit_bullet_list(self, node: docutils.nodes.bullet_list):
-        if self._prev_caption is not None and self._prev_caption.parent is node.parent:
-            # Insert as sub-entry of the previous caption.
-            title_text = self._render_title(self._prev_caption.children)
-            self._prev_caption = None
-            child_visitor = _TocVisitor(self.document, self._builder)
-            node.walk(child_visitor)
-            url = None
-            children = child_visitor._children
-            if children:
-                url = children[0].url
-            self._children.append(
-                MkdocsNavEntry(
-                    title_text=title_text,
-                    url=url,
-                    children=children,
-                    active=False,
-                    current=False,
-                    caption_only=True,
-                )
+        if (
+            self._prev_caption is None
+            or self._prev_caption.parent is not node.parent
+        ):
+            return
+        # Insert as sub-entry of the previous caption.
+        title_text = self._render_title(self._prev_caption.children)
+        self._prev_caption = None
+        child_visitor = _TocVisitor(self.document, self._builder)
+        node.walk(child_visitor)
+        children = child_visitor._children
+        url = children[0].url if children else None
+        self._children.append(
+            MkdocsNavEntry(
+                title_text=title_text,
+                url=url,
+                children=children,
+                active=False,
+                current=False,
+                caption_only=True,
             )
-            raise docutils.nodes.SkipChildren
+        )
+        raise docutils.nodes.SkipChildren
         # Otherwise, just process each list_item as direct children.
 
     def get_result(self) -> MkdocsNavEntry:
@@ -362,9 +364,7 @@ def _relative_uri_to_root_relative_and_anchor(
     uri = urllib.parse.urlparse(
         urllib.parse.urljoin(builder.get_target_uri(base_pagename), relative_uri)
     )
-    if uri.netloc:
-        return None
-    return (uri.path, uri.fragment)
+    return None if uri.netloc else (uri.path, uri.fragment)
 
 
 class DomainAnchorEntry(NamedTuple):
@@ -454,9 +454,9 @@ def _add_domain_info_to_toc(
         tooltip = object_description_options.format_object_description_tooltip(
             env, options, objinfo.name, objinfo.synopsis
         )
-        toc_icon_text = options["toc_icon_text"]
         toc_icon_class = options["toc_icon_class"]
         title_prefix = ""
+        toc_icon_text = options["toc_icon_text"]
         if toc_icon_text is not None and toc_icon_class is not None:
             title_prefix = (
                 f'<span aria-label="{label}" '
@@ -465,21 +465,20 @@ def _add_domain_info_to_toc(
             )
         span_prefix = "<span "
         assert entry.title.startswith(span_prefix)
-        entry.title = (
-            title_prefix
-            + f'<span title="{markupsafe.Markup.escape(tooltip)}" '
-            + entry.title[len(span_prefix) :]
-        )
+        entry.title = f'{title_prefix}<span title="{markupsafe.Markup.escape(tooltip)}" {entry.title[len(span_prefix):]}'
 
 
 def _get_current_page_in_toc(toc: List[MkdocsNavEntry]) -> Optional[MkdocsNavEntry]:
-    for entry in toc:
-        if not entry.active:
-            continue
-        if entry.current:
-            return entry
-        return _get_current_page_in_toc(entry.children)
-    return None
+    return next(
+        (
+            entry
+            if entry.current
+            else _get_current_page_in_toc(entry.children)
+            for entry in toc
+            if entry.active
+        ),
+        None,
+    )
 
 
 def _prune_toc_by_active(

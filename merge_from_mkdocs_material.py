@@ -131,8 +131,7 @@ def _resolve_ref(ref: str) -> str:
 @contextlib.contextmanager
 def _temp_worktree_path():
     if args.keep_temp:
-        temp_workdir = tempfile.mkdtemp()
-        yield temp_workdir
+        yield tempfile.mkdtemp()
         return
     with tempfile.TemporaryDirectory() as temp_workdir:
         try:
@@ -155,8 +154,7 @@ def _create_adjusted_tree(ref: str, temp_workdir: str) -> str:
     exclude = []
     # filter out exclude patterns for paths that don't exist in the temp_workdir
     for pattern in MKDOCS_EXCLUDE_PATTERNS:
-        for file in pathlib.Path(temp_workdir).rglob(pattern):
-            exclude.append(str(file))
+        exclude.extend(str(file) for file in pathlib.Path(temp_workdir).rglob(pattern))
     subprocess.run(
         ["git", "rm", "--quiet", "-r"] + exclude,
         cwd=temp_workdir,
@@ -192,14 +190,7 @@ def _get_git_status(workdir: str):
         text=True,
         cwd=workdir,
     ).stdout
-    result = {}
-    for line in status_output.split("\x00"):
-        if not line:
-            continue
-        status_code = line[:2]
-        filename = line[3:]
-        result[filename] = status_code
-    return result
+    return {line[3:]: line[:2] for line in status_output.split("\x00") if line}
 
 
 def _characterize_git_status(file_status):
@@ -227,7 +218,7 @@ def main():
     patch_path = os.path.abspath(args.patch_output)
     if not os.path.exists(patch_path):
         os.makedirs(patch_path)
-    patch_path += os.sep + "patch_info.diff"
+    patch_path += f"{os.sep}patch_info.diff"
 
     print("\nGetting sphinx-immaterial repo ready")
     with _temp_worktree_path() as temp_workdir:
@@ -287,9 +278,9 @@ def main():
                     capture_output=True,
                 )
             except subprocess.CalledProcessError as exc:
-                # provide a verbose coherent output from `git apply` when problematic.
-                output = str(exc.stdout, encoding="utf-8").replace("\n", "\n   ")
-                output += str(exc.stderr, encoding="utf-8").replace("\n", "\n   ")
+                output = str(exc.stdout, encoding="utf-8").replace(
+                    "\n", "\n   "
+                ) + str(exc.stderr, encoding="utf-8").replace("\n", "\n   ")
                 print(f"`{' '.join(exc.cmd)}` returned {exc.returncode}\n   {output}")
 
         with open(patch_path, "wb") as patch_f:
@@ -300,7 +291,7 @@ def main():
 
     updated_files, conflict_files = _characterize_git_status(file_status)
 
-    print("Patch in: " + patch_path)
+    print(f"Patch in: {patch_path}")
 
     if not args.dry_run:
         print("\nApplying patch file to sphinx-immaterial repo.")

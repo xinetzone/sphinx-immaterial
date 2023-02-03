@@ -30,9 +30,7 @@ def _monkey_patch_python_get_signature_prefix(
         parts = prefix.strip().split(" ")
         if "property" in parts:
             parts.remove("property")
-        if parts:
-            return " ".join(parts) + " "
-        return ""
+        return " ".join(parts) + " " if parts else ""
 
     directive_cls.get_signature_prefix = get_signature_prefix  # type: ignore
 

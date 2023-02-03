@@ -69,12 +69,10 @@ class CollectSignaturesTransform(sphinx.transforms.SphinxTransform):
                 continue
             if "api-include-path" in node["classes"]:
                 continue
-            parts = []
-            for child in node.children:
-                parts.append(child.astext())
+            parts = [child.astext() for child in node.children]
             signature = " ".join(parts)
             sig_id = hashlib.md5(
-                (f"{domain}:{objtype}:" + signature).encode("utf-8")
+                f"{domain}:{objtype}:{signature}".encode("utf-8")
             ).hexdigest()
             node[_SIGNATURE_FORMAT_ID] = sig_id
             collected_signatures[domain, objtype][sig_id] = signature
@@ -127,7 +125,7 @@ def _format_signature(node: sphinx.addnodes.desc_signature, formatted: str) -> N
         if m is None:
             raise ValueError("Failed to match")
         formatted_i = m.end()
-        return m.group(0)
+        return m[0]
 
     prev_text_node = None
     seen_name = False
@@ -195,22 +193,21 @@ def _format_signature(node: sphinx.addnodes.desc_signature, formatted: str) -> N
         nonlocal seen_name, name_text_node_replacement
         if isinstance(node, docutils.nodes.Text):
             return process_text(node)
-        if not seen_name:
-            if isinstance(node, sphinx.addnodes.desc_addname) or (
+        if not seen_name and (
+            isinstance(node, sphinx.addnodes.desc_addname)
+            or (
                 isinstance(node, sphinx.addnodes.desc_name)
                 and "sig-name-nonprimary"
                 not in cast(docutils.nodes.Element, node)["classes"]
-            ):
-                seen_name = True
-                if prev_text_node is not None:
-                    m = re.fullmatch(
-                        r"(.*\n)(\s+)$", prev_text_node.astext(), re.DOTALL
-                    )
-                    if m is not None:
-                        name_text_node_replacement = (
-                            prev_text_node,
-                            SignatureText(m.group(1)),
-                        )
+            )
+        ):
+            seen_name = True
+            if prev_text_node is not None:
+                m = re.fullmatch(
+                    r"(.*\n)(\s+)$", prev_text_node.astext(), re.DOTALL
+                )
+                if m is not None:
+                    name_text_node_replacement = prev_text_node, SignatureText(m[1])
 
         if isinstance(node, sphinx.addnodes.desc_signature_line):
             return process_desc_signature_line(node)
@@ -291,11 +288,7 @@ def env_updated(
         )
 
         style: ClangFormatStyle = options["clang_format_style"]
-        if isinstance(style, str):
-            style = {"BasedOnStyle": style}
-        else:
-            style = style.copy()
-
+        style = {"BasedOnStyle": style} if isinstance(style, str) else style.copy()
         style.setdefault("ColumnLimit", options["wrap_signatures_column_limit"])
         language = DOMAIN_CLANG_FORMAT_LANGUAGE.get(domain)
         if language is not None:

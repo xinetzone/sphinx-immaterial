@@ -138,10 +138,7 @@ class StaticBundlesCommand(setuptools.command.build_py.build_py):
         if self.skip_rebuild:
             output_dir = os.path.join(package_root, "bundles")
             if os.path.exists(output_dir):
-                print(
-                    "Skipping rebuild of package since %s already exists"
-                    % (output_dir,)
-                )
+                print(f"Skipping rebuild of package since {output_dir} already exists")
                 return
 
         target = {"min": "build", "dev": "build:dev"}
@@ -150,15 +147,12 @@ class StaticBundlesCommand(setuptools.command.build_py.build_py):
             tgt = target[self.bundle_type]
             node_modules_path = os.path.join(root_dir, "node_modules")
             if self.skip_npm_reinstall and os.path.exists(node_modules_path):
-                print(
-                    "Skipping `npm install` since %s already exists"
-                    % (node_modules_path,)
-                )
+                print(f"Skipping `npm install` since {node_modules_path} already exists")
             else:
                 subprocess.call("npm i", shell=True, cwd=root_dir)
             res = subprocess.call(f"npm run {tgt}", shell=True, cwd=root_dir)
         except:
-            raise RuntimeError("Could not run 'npm run %s'." % tgt)
+            raise RuntimeError(f"Could not run 'npm run {tgt}'.")
 
         if res:
             raise RuntimeError("failed to build sphinx-immaterial package.")

@@ -174,7 +174,7 @@ class LoadedSchemaData:
         def _process_schema(schema: JsonSchema, pointer: str):
             pointer_based_id = top_level_id
             if pointer:
-                pointer_based_id += "#" + pointer
+                pointer_based_id += f"#{pointer}"
             canonical_id = pointer_based_id
             if "$id" in schema:
                 canonical_id = schema["$id"] = _normalize_jsonschema_id(
@@ -209,11 +209,7 @@ class LoadedSchemaData:
         filename, line = self.source_info_map.get(
             id(source_string), (default_filename, 0)
         )
-        if line > 0:
-            return "%s:%d" % (filename, line)
-        # Always include ":" in location even if line number is unknown, as
-        # otherwise Sphinx interprets it as a docname.
-        return "%s:" % (filename,)
+        return "%s:%d" % (filename, line) if line > 0 else f"{filename}:"
 
 
 def yaml_load(  # pylint: disable=invalid-name
@@ -245,7 +241,7 @@ def yaml_load(  # pylint: disable=invalid-name
 def _globs_to_re(globs: List[str]) -> re.Pattern:
     return re.compile(
         "|".join(
-            "(?:" + sphinx.util.matching._translate_pattern(x) + ")" for x in globs
+            f"(?:{sphinx.util.matching._translate_pattern(x)})" for x in globs
         )
     )
 
@@ -330,10 +326,14 @@ def _is_object_with_properties(schema_node: JsonSchema) -> bool:
 
     :param schema_node: JSON schema to check.
     """
-    if not isinstance(schema_node, dict):
-        return False
-    return ("type" not in schema_node and "allOf" in schema_node) or (
-        schema_node.get("type") == "object" and schema_node.get("properties", {})
+    return (
+        ("type" not in schema_node and "allOf" in schema_node)
+        or (
+            schema_node.get("type") == "object"
+            and schema_node.get("properties", {})
+        )
+        if isinstance(schema_node, dict)
+        else False
     )
 
 
@@ -377,9 +377,7 @@ def _traverse_sub_schemas(
         else:
             raise TypeError
         for key, sub_schema in items:
-            yield from _traverse_sub_schemas(
-                sub_schema, "%s/%s/%s" % (pointer, prop, key)
-            )
+            yield from _traverse_sub_schemas(sub_schema, f"{pointer}/{prop}/{key}")
 
     for prop in ("definitions", "properties", "allOf", "oneOf"):
         yield from _handle_prop(prop)
@@ -388,7 +386,7 @@ def _traverse_sub_schemas(
         if isinstance(items_data, list):
             yield from _handle_prop("items")
         else:
-            yield from _traverse_sub_schemas(items_data, "%s/items" % (pointer,))
+            yield from _traverse_sub_schemas(items_data, f"{pointer}/items")
 
 
 def _fix_jsonschema_ids(
@@ -427,7 +425,7 @@ def _fix_jsonschema_ids(
 
 def _get_json_schema_node_id(fully_qualified_name: str) -> str:
     """Returns the reference id (i.e. HTML fragment id) for a schema."""
-    return "json-%s" % (fully_qualified_name,)
+    return f"json-{fully_qualified_name}"
 
 
 def _schema_to_xref(schema_id: str) -> sphinx.addnodes.pending_xref:
@@ -575,12 +573,10 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
             or schema_node.get("maxLength") is not None
         ):
             subscript_parts.append(sphinx.addnodes.desc_sig_punctuation("", "["))
-            min_length = schema_node.get("minLength")
-            if min_length:
+            if min_length := schema_node.get("minLength"):
                 subscript_parts.append(_json_literal(self.state, min_length))
             subscript_parts.append(sphinx.addnodes.desc_sig_punctuation("", ".."))
-            max_length = schema_node.get("maxLength")
-            if max_length:
+            if max_length := schema_node.get("maxLength"):
                 subscript_parts.append(_json_literal(self.state, max_length))
             subscript_parts.append(sphinx.addnodes.desc_sig_punctuation("", "]"))
             result.append(docutils.nodes.subscript("", "", *subscript_parts))
@@ -609,8 +605,9 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
                 return None
             return prefix + [docutils.nodes.emphasis("", " of ")] + items_desc
         if "items" in schema_node and isinstance(items, list):
-            result: List[docutils.nodes.Node] = []
-            result.append(sphinx.addnodes.desc_sig_punctuation("", "["))
+            result: List[docutils.nodes.Node] = [
+                sphinx.addnodes.desc_sig_punctuation("", "[")
+            ]
             for i, item in enumerate(items):
                 if i != 0:
                     result.append(sphinx.addnodes.desc_sig_punctuation("", ","))
@@ -674,16 +671,16 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
         :param properties: Dict to be filled with members.
         :param required: Set to which required members are added.
         """
-        schema_data: LoadedSchemaData = getattr(self.env, "json_schema_data")
         if "$ref" in schema_node:
             ref = schema_node["$ref"]
+            schema_data: LoadedSchemaData = getattr(self.env, "json_schema_data")
             referenced_entry = schema_data.id_map.get(ref)
             if referenced_entry is None:
                 # Error was already emitted previously
                 return
             schema_node = referenced_entry.schema
         if schema_node.get("type") == "object":
-            properties.update(schema_node.get("properties", {}))
+            properties |= schema_node.get("properties", {})
             required.update(schema_node.get("required", []))
         elif _is_object_array_with_properties(schema_node):
             self._collect_object_properties(schema_node["items"], properties, required)
@@ -716,7 +713,7 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
         field += field_name
         if not self._noindex and self._objdesc_options["include_fields_in_toc"]:
             field_name["ids"].append(
-                docutils.nodes.make_id(label) + "-" + cast(str, self._node_id)
+                f"{docutils.nodes.make_id(label)}-{cast(str, self._node_id)}"
             )
             field_name["toc_title"] = label
         body = docutils.nodes.field_body(classes=["noindent"])
@@ -739,7 +736,7 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
             title = None
             if generate_oneof_ids:
                 title = x["const"]
-                fully_qualified_name = "%s.%s" % (self._fully_qualified_name, title)
+                fully_qualified_name = f"{self._fully_qualified_name}.{title}"
             body.extend(
                 self._add_sub_schema(
                     schema_data.identity_map[id(x)],
@@ -858,12 +855,12 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
                 schema_node, properties, required_properties
             )
             for required in [True, False]:
-                if not any(
-                    (member_name in required_properties) == required
+                if all(
+                    (member_name in required_properties) != required
                     for member_name in properties
                 ):
                     continue
-                heading = "%s members" % ("Required" if required else "Optional")
+                heading = f'{"Required" if required else "Optional"} members'
                 field_list, body = self._make_field(heading)
                 result.append(field_list)
                 for member_name, member_schema in properties.items():
@@ -873,8 +870,7 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
                         self._add_sub_schema(
                             schema_data.identity_map[id(member_schema)],
                             title=member_name,
-                            fully_qualified_name="%s.%s"
-                            % (self._fully_qualified_name, member_name),
+                            fully_qualified_name=f"{self._fully_qualified_name}.{member_name}",
                             nested=True,
                             exclude_from_toc=self._exclude_from_toc,
                             noindex=self._noindex,
@@ -972,7 +968,7 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
         self._noindex = "noindex" in self.options
         self._exclude_from_toc = "exclude_from_toc" in self.options
         self._nested = "nested" in self.options
-        self._objtype = "schema" if not self._nested else "subschema"
+        self._objtype = "subschema" if self._nested else "schema"
         self._objdesc_options = (
             object_description_options.get_object_description_options(
                 self.env, "json", self._objtype
@@ -1003,8 +999,7 @@ class JsonSchemaDirective(sphinx.directives.ObjectDescription):
         # block after the description.
         self._long_default_value = None
         self._short_default_value = None
-        has_default_value = "default" in schema_node
-        if has_default_value:
+        if has_default_value := "default" in schema_node:
             formatted_default = json_pprint.pformat(
                 schema_node["default"], indent=2
             ).strip()
@@ -1068,14 +1063,14 @@ class JsonSchemaRole(sphinx.roles.XRefRole):
             title = title.lstrip(".")  # Only has a meaning for the target
             target = target.lstrip("~")  # Only has a meaning for the title
             # If the first character is a tilde, don't display the initial parts
-            if title[0:1] == "~":
+            if title.startswith("~"):
                 title = title[1:]
                 dot = title.rfind(".")
                 if dot != -1:
                     title = title[dot + 1 :]
         # if the first character is a dot, search more specific namespaces first
         # else search builtins first
-        if target[0:1] == ".":
+        if target.startswith("."):
             target = target[1:]
             refnode["refspecific"] = True
         return title, target
@@ -1169,8 +1164,10 @@ class JsonSchemaDomain(sphinx.domains.Domain):
         search_prefixes = [""]
         if parent_schema:
             parent_parts = parent_schema.split(".")
-            for i in range(1, len(parent_parts) + 1):
-                search_prefixes.append(".".join(parent_parts[:i]) + ".")
+            search_prefixes.extend(
+                ".".join(parent_parts[:i]) + "."
+                for i in range(1, len(parent_parts) + 1)
+            )
         if refspecific:
             search_prefixes = search_prefixes[::-1]
         for search_prefix in search_prefixes:
@@ -1255,8 +1252,7 @@ class JsonSchemaDomain(sphinx.domains.Domain):
 
     def get_object_synopses(self) -> Iterator[Tuple[Tuple[str, str], str]]:
         for obj in self.schemas.values():
-            synopsis = obj.synopsis
-            if synopsis:
+            if synopsis := obj.synopsis:
                 yield ((obj.docname, obj.node_id), synopsis)
 
 

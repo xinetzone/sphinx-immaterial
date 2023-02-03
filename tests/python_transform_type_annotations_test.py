@@ -29,9 +29,7 @@ html_theme = "sphinx_immaterial"
 
 
 def test_transform_type_annotations_pep604(theme_make_app):
-    app = theme_make_app(
-        confoverrides=dict(),
-    )
+    app = theme_make_app(confoverrides={})
 
     for annotation, expected_text in [
         ("Union[int, float]", "int | float"),

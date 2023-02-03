@@ -112,9 +112,7 @@ def _get_ast_dotted_name(node: Union[ast.Name, ast.Attribute]) -> Optional[str]:
     if isinstance(node, ast.Name):
         return node.id
     parent = _get_ast_dotted_name(cast(Union[ast.Name, ast.Attribute], node.value))
-    if parent is None:
-        return None
-    return f"{parent}.{node.attr}"
+    return None if parent is None else f"{parent}.{node.attr}"
 
 
 def _dotted_name_to_ast(
@@ -154,13 +152,11 @@ class TypeTransformConfig(NamedTuple):
     strip_modules_from_xrefs_pattern: Optional[Pattern[str]]
 
     def transform_dotted_name(self, dotted_name: str) -> str:
-        aliases = self.aliases
-        if aliases:
+        if aliases := self.aliases:
             new_name = aliases.get(dotted_name)
             if new_name is not None:
                 return new_name
-        module_replacements_pattern = self.module_replacements_pattern
-        if module_replacements_pattern:
+        if module_replacements_pattern := self.module_replacements_pattern:
             dotted_name = module_replacements_pattern.sub(
                 lambda m: self.module_aliases[m.group(0)], dotted_name
             )
@@ -208,9 +204,7 @@ class TypeAnnotationTransformer(ast.NodeTransformer):
         ):
             return self.generic_visit(node)
         operand, pep604_transformed = self._transform_subscript_pep604(node.operand)
-        if pep604_transformed:
-            return operand
-        return ast.UnaryOp(node.op, operand)
+        return operand if pep604_transformed else ast.UnaryOp(node.op, operand)
 
     def _transform_subscript_pep604(self, node: ast.Subscript) -> Tuple[ast.AST, bool]:
         if not self.config.pep604:
@@ -222,10 +216,7 @@ class TypeAnnotationTransformer(ast.NodeTransformer):
             elts: Sequence[ast.AST]
             if isinstance(slice_expr, ast.Index):
                 slice_expr = slice_expr.value  # type: ignore
-            if isinstance(slice_expr, ast.Tuple):
-                elts = slice_expr.elts
-            else:
-                elts = [slice_expr]
+            elts = slice_expr.elts if isinstance(slice_expr, ast.Tuple) else [slice_expr]
             elts = [self.visit(x) for x in elts]
             if id_str == "typing.Optional":
                 elts.append(ast.Constant(value=None))
@@ -276,7 +267,7 @@ def _builder_inited(app: sphinx.application.Sphinx):
     module_aliases: Dict[str, str] = {}
 
     if config.python_transform_type_annotations_pep585:
-        aliases.update(PEP585_ALIASES)
+        aliases |= PEP585_ALIASES
 
     if config.python_resolve_unqualified_typing:
         for name in TYPING_NAMES:

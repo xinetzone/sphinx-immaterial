@@ -14,15 +14,11 @@ from . import external_cpp_references
 
 
 def _join_links(a: str, b: typing.Optional[str]):
-    if b is None or b == ".":
-        return a
-    return os.path.join(a, b)
+    return a if b is None or b == "." else os.path.join(a, b)
 
 
 def _join_names(a: str, b: str):
-    if not a:
-        return b
-    return f"{a}::{b}"
+    return f"{a}::{b}" if a else b
 
 
 def _get_last_name(s: str) -> str:
@@ -75,10 +71,10 @@ class CppReferenceXmlParser:
         )
 
     def add_element(self, element: ET.Element):
-        add_function = getattr(self, f"_add_from_{element.tag}", None)
-        if not add_function:
+        if add_function := getattr(self, f"_add_from_{element.tag}", None):
+            add_function(element)
+        else:
             return
-        add_function(element)
 
     def _add_from_typedef(self, element: ET.Element):
         alias = element.get("alias")
@@ -143,7 +139,7 @@ class CppReferenceXmlParser:
     def _add_from_destructor(self, element: ET.Element):
         name = _get_last_name(self.name_prefix)
         self.add(
-            name=_join_names(self.name_prefix, "~" + name),
+            name=_join_names(self.name_prefix, f"~{name}"),
             typ="function",
             link=_join_links(self.link_prefix, element.get("link")),
             since=element.get("since", self.since),

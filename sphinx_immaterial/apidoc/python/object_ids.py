@@ -101,7 +101,7 @@ def _monkey_patch_python_domain_to_support_object_ids():
         for signode in cast(List[docutils.nodes.Element], signodes):
             modname = signode["module"]
             fullname = signode["fullname"]
-            symbol = (modname + "." if modname else "") + fullname
+            symbol = (f"{modname}." if modname else "") + fullname
             if nonodeid and signode["ids"]:
                 orig_node_id = signode["ids"][0]
                 signode["ids"] = []

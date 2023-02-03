@@ -103,22 +103,20 @@ PARAMETER_OBJECT_TYPES = (
 def get_precise_template_parameter_object_type(
     object_type: str, symbol: Optional[sphinx.domains.cpp.Symbol]
 ) -> str:
-    if object_type == "templateParam":
-        # Determine more precise object type.
-        if symbol is not None:
-            assert symbol.declaration is not None
-            if isinstance(
-                symbol.declaration.declaration,
-                sphinx.domains.cpp.ASTTemplateParamNonType,
-            ):
-                object_type = "templateNonTypeParam"
-            elif isinstance(
-                symbol.declaration.declaration,
-                sphinx.domains.cpp.ASTTemplateParamTemplateType,
-            ):
-                object_type = "templateTemplateParam"
-            else:
-                object_type = "templateTypeParam"
+    if object_type == "templateParam" and symbol is not None:
+        assert symbol.declaration is not None
+        if isinstance(
+            symbol.declaration.declaration,
+            sphinx.domains.cpp.ASTTemplateParamNonType,
+        ):
+            object_type = "templateNonTypeParam"
+        elif isinstance(
+            symbol.declaration.declaration,
+            sphinx.domains.cpp.ASTTemplateParamTemplateType,
+        ):
+            object_type = "templateTemplateParam"
+        else:
+            object_type = "templateTypeParam"
 
     return object_type
 
@@ -255,8 +253,8 @@ def _add_parameter_documentation_ids(
     domain = obj_content.parent["domain"]
 
     def cross_link_single_parameter(
-        param_name: str, param_node: docutils.nodes.term
-    ) -> None:
+            param_name: str, param_node: docutils.nodes.term
+        ) -> None:
         kind = param_node.get("param_kind")
 
         # Determine the number of unique declarations of this parameter.
@@ -336,7 +334,7 @@ def _add_parameter_documentation_ids(
             setattr(
                 param_symbol.declaration,
                 symbol_ids.AST_ID_OVERRIDE_ATTR,
-                parent_symbol.declaration.get_newest_id() + "-" + param_id_suffix,
+                f"{parent_symbol.declaration.get_newest_id()}-{param_id_suffix}",
             )
 
             if qualify_parameter_ids:
@@ -350,7 +348,7 @@ def _add_parameter_documentation_ids(
                         if parent_id == prev_parent_id:
                             continue
                         prev_parent_id = parent_id
-                        id_prefixes.append(parent_id + "-")
+                        id_prefixes.append(f"{parent_id}-")
                     except domain_module.NoOldIdError:
                         continue
             else:
@@ -364,12 +362,11 @@ def _add_parameter_documentation_ids(
                     param_id = id_prefix + param_id_suffix
                     param_node["ids"].append(param_id)
 
-        if object_type is not None:
-            if param_options["include_in_toc"]:
-                toc_title = param_name
-                if kind:
-                    toc_title += f" [{kind}]"
-                param_node["toc_title"] = toc_title
+        if object_type is not None and param_options["include_in_toc"]:
+            toc_title = param_name
+            if kind:
+                toc_title += f" [{kind}]"
+            param_node["toc_title"] = toc_title
 
         if not qualify_parameter_ids:
             param_node["ids"].append(param_id_suffix)
@@ -392,7 +389,7 @@ def _add_parameter_documentation_ids(
             if i != 0:
                 del new_param_node["ids"][:]
             source, line = docutils.utils.get_source_line(desc_param_node)
-            new_children = list(c.deepcopy() for c in desc_param_node.children)
+            new_children = [c.deepcopy() for c in desc_param_node.children]
             new_param_node.extend(new_children)
             for child in new_children:
                 child.source = source
@@ -461,20 +458,12 @@ def _cross_link_parameters(
 
     assert len(signodes) == len(symbols)
 
-    # Collect the docutils nodes corresponding to the declarations of the
-    # parameters in each signature, and turn the parameter names into
-    # cross-links to the parameter description.
-    #
-    # In the parameter descriptions (e.g. in the "Parameters" or "Template
-    # Parameters" fields), these declarations will be copied in to replace the
-    # bare parameter name so that the parameter description shows e.g. `int x =
-    # 10` or `typename T` rather than just `x` or `T`.
-    sig_param_nodes_for_signature = []
-    for signode, symbol in zip(signodes, symbols):
-        sig_param_nodes_for_signature.append(
-            _add_parameter_links_to_signature(app.env, signode, symbol, domain=domain)
+    sig_param_nodes_for_signature = [
+        _add_parameter_links_to_signature(
+            app.env, signode, symbol, domain=domain
         )
-
+        for signode, symbol in zip(signodes, symbols)
+    ]
     # Find all parameter descriptions in the object description body, and mark
     # them as the target for cross links to that parameter.  Also substitute in
     # the parameter declaration for the bare parameter name, as described above.

@@ -83,8 +83,7 @@ class CustomAdmonitionConfig(pydantic.BaseModel):
 
     @pydantic.validator("name", pre=True)
     def validate_name(cls, val):
-        illegal = re.findall(r"([^a-zA-Z0-9\-_])", val)
-        if illegal:
+        if illegal := re.findall(r"([^a-zA-Z0-9\-_])", val):
             raise ValueError(
                 f"The following characters are illegal for directive names: {illegal}"
             )
@@ -181,7 +180,7 @@ class CustomAdmonitionDirective(Directive, ABC):
                 self.options["classes"] = []
             self.options["classes"].extend(self.options["class"])
             del self.options["class"]
-        title_text = "" if not self.arguments else self.arguments[0]
+        title_text = self.arguments[0] if self.arguments else ""
         if "title" in self.options:
             # this option can be combined with the directive argument used as a title.
             title_text += (" " if title_text else "") + self.options["title"]

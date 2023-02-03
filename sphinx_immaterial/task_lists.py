@@ -12,9 +12,7 @@ class checkbox_label(nodes.container):
 
 
 def visit_checkbox_label(self: HTMLTranslator, node: checkbox_label):
-    attributes = {}
-    if node["custom"]:
-        attributes = {"class": "task-list-control"}
+    attributes = {"class": "task-list-control"} if node["custom"] else {}
     self.body.append(self.starttag(node, "label", **attributes))
     self.body.append('<input type="checkbox"')
     if node["disabled"]:
@@ -63,26 +61,27 @@ class TaskListDirective(SphinxDirective):
                 child["classes"] = ["task-list"]
             assert isinstance(child, nodes.Element)
             for li_ in child.children:
-                if isinstance(li_, nodes.list_item):
-                    if li_.astext().startswith("["):
-                        li_["classes"] = ["task-list-item"]
-                        checked = li_.astext().lower().startswith("[x]")
-                        first_para = first_matching(li_, nodes.paragraph)
-                        if first_para is not None:
-                            first_text = first_matching(li_[first_para], nodes.Text)
-                            li_[first_para][first_text] = li_[first_para][
-                                first_text
-                            ].lstrip("[x] ")
-                            li_[first_para][first_text] = li_[first_para][
-                                first_text
-                            ].lstrip("[ ] ")
-                        checkbox = checkbox_label(
-                            "",
-                            custom=custom,
-                            disabled=not clickable,
-                            checked=checked,
-                        )
-                        li_.insert(0, checkbox)
+                if isinstance(li_, nodes.list_item) and li_.astext().startswith(
+                    "["
+                ):
+                    li_["classes"] = ["task-list-item"]
+                    checked = li_.astext().lower().startswith("[x]")
+                    first_para = first_matching(li_, nodes.paragraph)
+                    if first_para is not None:
+                        first_text = first_matching(li_[first_para], nodes.Text)
+                        li_[first_para][first_text] = li_[first_para][
+                            first_text
+                        ].lstrip("[x] ")
+                        li_[first_para][first_text] = li_[first_para][
+                            first_text
+                        ].lstrip("[ ] ")
+                    checkbox = checkbox_label(
+                        "",
+                        custom=custom,
+                        disabled=not clickable,
+                        checked=checked,
+                    )
+                    li_.insert(0, checkbox)
 
         return [task_list]
 

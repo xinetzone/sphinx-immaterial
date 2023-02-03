@@ -41,6 +41,8 @@ DEFAULT_THEME_OPTIONS = {
 def _get_html_builder(base_builder: Type[sphinx.builders.html.StandaloneHTMLBuilder]):
     """Returns a modified HTML translator."""
 
+
+
     class CustomHTMLBuilder(base_builder):  # type: ignore
 
         css_files: List[sphinx.builders.html.Stylesheet]
@@ -58,15 +60,13 @@ def _get_html_builder(base_builder: Type[sphinx.builders.html.StandaloneHTMLBuil
 
             # Remove unnecessary scripts
 
-            excluded_scripts = set(
-                [
-                    "_static/underscore.js",
-                    "_static/doctools.js",
-                    "_static/language_data.js",
-                    "_static/documentation_options.js",
-                    "_static/sphinx_highlight.js",
-                ]
-            )
+            excluded_scripts = {
+                "_static/underscore.js",
+                "_static/doctools.js",
+                "_static/language_data.js",
+                "_static/documentation_options.js",
+                "_static/sphinx_highlight.js",
+            }
             if nav_adapt.READTHEDOCS is None:
                 excluded_scripts.add("_static/jquery.js")
                 excluded_scripts.add("_static/_sphinx_javascript_frameworks_compat.js")
@@ -148,12 +148,13 @@ def _get_html_builder(base_builder: Type[sphinx.builders.html.StandaloneHTMLBuil
             """Strips ``index.html`` suffix from URIs for cleaner links."""
             orig_uri = super().get_target_uri(docname, typ)
             if self.app.config["html_use_directory_uris_for_index_pages"]:
-                index_suffix = "index" + self.link_suffix
+                index_suffix = f"index{self.link_suffix}"
                 if orig_uri == index_suffix:
                     return ""
-                if orig_uri.endswith("/" + index_suffix):
+                if orig_uri.endswith(f"/{index_suffix}"):
                     return orig_uri[: -len(index_suffix)]
             return orig_uri
+
 
     return CustomHTMLBuilder
 

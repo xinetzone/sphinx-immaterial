@@ -43,10 +43,13 @@ def visit_title(
     node: docutils.nodes.title,
     super_func: html_translator_mixin.BaseVisitCallback[docutils.nodes.title],
 ) -> None:
-    if isinstance(node.parent, docutils.nodes.section):
-        if node.parent.get("ids") and not node.get("ids"):
-            node["ids"] = node.parent.get("ids")
-            super_func(self, node)
-            del node["ids"]
-            return
+    if (
+        isinstance(node.parent, docutils.nodes.section)
+        and node.parent.get("ids")
+        and not node.get("ids")
+    ):
+        node["ids"] = node.parent.get("ids")
+        super_func(self, node)
+        del node["ids"]
+        return
     super_func(self, node)

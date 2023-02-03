@@ -30,9 +30,8 @@ def _maybe_strip_type_annotations(
             if fullname is None:
                 # Python domain failed to parse the signature.  Just ignore it.
                 continue
-            modname = signode["module"]
-            if modname:
-                fullname = modname + "." + fullname
+            if modname := signode["module"]:
+                fullname = f"{modname}.{fullname}"
             if strip_return_type_annotations.fullmatch(fullname):
                 # Remove return type.
                 for node in signode.findall(condition=sphinx.addnodes.desc_returns):

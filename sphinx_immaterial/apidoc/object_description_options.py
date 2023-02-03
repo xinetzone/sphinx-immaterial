@@ -206,10 +206,7 @@ def _builder_inited(app: sphinx.application.Sphinx) -> None:
     def get_options(domain: str, object_type: str) -> Dict[str, Any]:
         key = f"{domain}:{object_type}"
         matches = options_map.get(key)
-        if matches is None:
-            matches = []
-        else:
-            matches = list(matches)
+        matches = [] if matches is None else list(matches)
         for pattern, i, options in options_patterns:
             if pattern.fullmatch(key):
                 matches.append((i, options))

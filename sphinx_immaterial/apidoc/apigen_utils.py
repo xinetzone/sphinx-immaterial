@@ -72,11 +72,14 @@ class GeneratedDocumentWriter:
                 continue
             seen_output_dirs.add(output_dir)
             os.makedirs(output_dir, exist_ok=True)
-            if self._case_insensitive_filesystem is None:
-                if _is_case_insensitive_filesystem(
-                    os.path.join(self.app.srcdir, output_prefix), self.initial_comment
-                ):
-                    self._case_insensitive_filesystem = True
+            if (
+                self._case_insensitive_filesystem is None
+                and _is_case_insensitive_filesystem(
+                    os.path.join(self.app.srcdir, output_prefix),
+                    self.initial_comment,
+                )
+            ):
+                self._case_insensitive_filesystem = True
         if self._case_insensitive_filesystem is None:
             self._case_insensitive_filesystem = False
 
@@ -90,9 +93,7 @@ class GeneratedDocumentWriter:
         srcdir = self.app.srcdir
         for output_prefix in self.output_prefixes:
             glob_pattern = os.path.join(srcdir, output_prefix)
-            for p in glob.glob(
-                os.path.join(srcdir, output_prefix + "*.rst"), recursive=True
-            ):
+            for p in glob.glob(os.path.join(srcdir, f"{output_prefix}*.rst"), recursive=True):
                 if not _is_generated_file(p, self.initial_comment):
                     continue
                 try:
@@ -102,7 +103,7 @@ class GeneratedDocumentWriter:
 
     def write_file(self, docname: str, object_name: str, entity_content: str):
 
-        rst_path = docname + ".rst"
+        rst_path = f"{docname}.rst"
         if rst_path in self.all_pages:
             logger.error(
                 "Both %r and %r map to generated path %r",
@@ -118,7 +119,7 @@ class GeneratedDocumentWriter:
         # Suppress "Edit this page" link since the page is generated.
         content += "\n\n:hide-edit-link:\n\n"
         content += entity_content
-        rst_path = os.path.join(self.app.srcdir, docname + ".rst")
+        rst_path = os.path.join(self.app.srcdir, f"{docname}.rst")
         if os.path.exists(rst_path):
             logger.error(
                 "Generated documentation page for %r would overwrite existing source file %r",

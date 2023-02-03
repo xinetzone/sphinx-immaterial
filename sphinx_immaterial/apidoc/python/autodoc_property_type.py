@@ -94,13 +94,13 @@ def apply_property_documenter_type_annotation_fix():
             return
 
         # Check if type annotation has already been added.
-        type_line_prefix = self.indent + "   :type: "
+        type_line_prefix = f"{self.indent}   :type: "
         for line in self.directive.result.data[start_line:]:
             if line.startswith(type_line_prefix):
                 return
 
         # Type annotation not already added.
-        self.add_line("   :type: " + retann, self.get_sourcename())
+        self.add_line(f"   :type: {retann}", self.get_sourcename())
 
     PropertyDocumenter.add_directive_header = add_directive_header  # type: ignore[assignment]
 

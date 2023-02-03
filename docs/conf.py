@@ -37,31 +37,6 @@ author = "Jeremy Maitin-Shepard"
 # The full version, including alpha/beta/rc tags
 release = "1"
 
-# -- General configuration ---------------------------------------------------
-
-# Add any Sphinx extension module names here, as strings. They can be
-# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
-# ones.
-extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.doctest",
-    "sphinx.ext.extlinks",
-    "sphinx.ext.intersphinx",
-    "sphinx.ext.napoleon",
-    "sphinx.ext.todo",
-    "sphinx.ext.mathjax",
-    "sphinx.ext.viewcode",
-    "sphinx_immaterial.theme_result",
-    "sphinx_immaterial.kbd_keys",
-    "sphinx_immaterial.apidoc.format_signatures",
-    "sphinx_immaterial.apidoc.cpp.cppreference",
-    "sphinx_immaterial.apidoc.json.domain",
-    "sphinx_immaterial.apidoc.python.apigen",
-    "sphinx_immaterial.apidoc.cpp.apigen",
-    "sphinx_immaterial.graphviz",
-    "sphinx_jinja",
-]
-
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "sphinx_docs": ("https://www.sphinx-doc.org/en/master", None),
@@ -96,9 +71,26 @@ html_title = "Sphinx-Immaterial"
 html_favicon = "_static/images/favicon.ico"  # colored version of material/bookshelf.svg
 html_logo = "_static/images/Ybin.gif"  # from https://gifer.com/en/Ybin
 
-# -- HTML theme specific settings ------------------------------------------------
-
-extensions.append("sphinx_immaterial")
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.doctest",
+    "sphinx.ext.extlinks",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.todo",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.viewcode",
+    "sphinx_immaterial.theme_result",
+    "sphinx_immaterial.kbd_keys",
+    "sphinx_immaterial.apidoc.format_signatures",
+    "sphinx_immaterial.apidoc.cpp.cppreference",
+    "sphinx_immaterial.apidoc.json.domain",
+    "sphinx_immaterial.apidoc.python.apigen",
+    "sphinx_immaterial.apidoc.cpp.apigen",
+    "sphinx_immaterial.graphviz",
+    "sphinx_jinja",
+    "sphinx_immaterial",
+]
 html_theme = "sphinx_immaterial"
 
 # material theme options (see theme.conf for more information)
@@ -210,16 +202,6 @@ extlinks = {
     ),
 }
 
-object_description_options = []
-
-# BEGIN: sphinx_immaterial.apidoc.format_signatures extension options
-object_description_options.append(
-    ("cpp:.*", dict(clang_format_style={"BasedOnStyle": "LLVM"}))
-)
-# END: sphinx_immaterial.apidoc.format_signatures extension options
-
-object_description_options.append(("py:.*", dict(wrap_signatures_with_css=True)))
-
 # BEGIN: sphinx_immaterial.apidoc.cpp.external_cpp_references extension options
 external_cpp_references = {
     "nlohmann::json": {
@@ -274,35 +256,36 @@ rst_prolog = """
 """
 
 
-object_description_options.append(
-    (
-        "std:confval",
-        dict(
-            toc_icon_class="data", toc_icon_text="C", generate_synopses="first_sentence"
+object_description_options = [
+    ("cpp:.*", dict(clang_format_style={"BasedOnStyle": "LLVM"})),
+    ("py:.*", dict(wrap_signatures_with_css=True)),
+    *(
+        (
+            "std:confval",
+            dict(
+                toc_icon_class="data",
+                toc_icon_text="C",
+                generate_synopses="first_sentence",
+            ),
         ),
-    )
-)
-
-object_description_options.append(
-    (
-        "std:objconf",
-        dict(
-            toc_icon_class="data",
-            toc_icon_text="O",
-            generate_synopses=None,
+        (
+            "std:objconf",
+            dict(
+                toc_icon_class="data",
+                toc_icon_text="O",
+                generate_synopses=None,
+            ),
         ),
-    )
-)
-
-object_description_options.append(
-    (
-        "std:themeconf",
-        dict(
-            toc_icon_class="data", toc_icon_text="T", generate_synopses="first_sentence"
+        (
+            "std:themeconf",
+            dict(
+                toc_icon_class="data",
+                toc_icon_text="T",
+                generate_synopses="first_sentence",
+            ),
         ),
-    )
-)
-
+    ),
+]
 python_type_aliases = {}
 
 # BEGIN: python_type_aliases example

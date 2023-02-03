@@ -46,10 +46,7 @@ def _replace_resolved_xrefs(node: sphinx.ext.graphviz.graphviz, code: str) -> st
         if ref_nodes:
             ref_node = ref_nodes[-1]
             refuri = ref_node.get("refuri")
-            if refuri is not None:
-                url = refuri or "#"
-            else:
-                url = "#" + ref_node["refid"]
+            url = refuri or "#" if refuri is not None else "#" + ref_node["refid"]
             title = ref_node.get("reftitle")
             replacement_text += f' href="{url}"'
             if title is not None:
@@ -145,7 +142,7 @@ def _get_orig_config_path(dot_command: str) -> Optional[str]:
         )
         return None
 
-    return m.group(1)
+    return m[1]
 
 
 def _make_adjusted_graphviz_config(
@@ -253,7 +250,7 @@ def render_dot_html(
         return replacement_color
 
     def replace_var_in_code(m: re.Match) -> str:
-        var_text = m.group(1)
+        var_text = m[1]
         replacement_color = replace_var(var_text)
         return f'"{replacement_color}"'
 
@@ -270,18 +267,18 @@ def render_dot_html(
         "-Ncolor=" + replace_var("var(--md-graphviz-node-fg-color)"),
         "-Nstyle=solid,filled",
         "-Nfillcolor=" + replace_var("var(--md-graphviz-node-bg-color)"),
-        "-Nfontcolor=" + fontcolor,
-        "-Nfontsize=" + fontsize,
-        "-Nfontname=" + ttf_font,
+        f"-Nfontcolor={fontcolor}",
+        f"-Nfontsize={fontsize}",
+        f"-Nfontname={ttf_font}",
         "-Ecolor=" + replace_var("var(--md-graphviz-edge-color)"),
-        "-Efontcolor=" + fontcolor,
-        "-Efontsize=" + fontsize,
-        "-Efontname=" + ttf_font,
+        f"-Efontcolor={fontcolor}",
+        f"-Efontsize={fontsize}",
+        f"-Efontname={ttf_font}",
         "-Gbgcolor=transparent",
         "-Gcolor=" + replace_var("var(--md-graphviz-node-fg-color)"),
-        "-Gfontcolor=" + fontcolor,
-        "-Gfontsize=" + fontsize,
-        "-Gfontname=" + ttf_font,
+        f"-Gfontcolor={fontcolor}",
+        f"-Gfontsize={fontsize}",
+        f"-Gfontname={ttf_font}",
     ]
 
     code = re.sub(r'"((?:var|calc)\s*\(.*?\))"', replace_var_in_code, code)
@@ -395,7 +392,7 @@ def render_dot_html(
         alt = node.get("alt", self.encode(code).strip())
     if "align" in node:
         self.body.append(
-            '<div align="%s" class="align-%s">' % (node["align"], node["align"])
+            f'<div align="{node["align"]}" class="align-{node["align"]}">'
         )
     self.body.append(svg_output)
     if "align" in node:
@@ -405,8 +402,7 @@ def render_dot_html(
 
 
 def _replace_var_refs_with_defaults(code: str) -> str:
-    code = re.sub(r'"var\s*\(.*?,\s*(.*)\)"', lambda m: f'"{m.group(1)}"', code)
-    return code
+    return re.sub(r'"var\s*\(.*?,\s*(.*)\)"', lambda m: f'"{m.group(1)}"', code)
 
 
 def on_build_finished(app: sphinx.application.Sphinx, exc: Optional[Exception]) -> None:
@@ -429,7 +425,7 @@ def _preprocess_graphviz_node(
 
     def replace_xref(m: re.Match) -> str:
         line_index = code.count("\n", 0, m.start())
-        xref_text = m.group(1).replace(r"\"", '"')
+        xref_text = m[1].replace(r"\"", '"')
         xref_index = len(xrefs)
         xref_id = f"__SPHINX_IMMATERIAL_XREF_{xref_index}__"
         xref_id, _ = xrefs.setdefault(xref_text, (xref_id, line_index - line_offset))

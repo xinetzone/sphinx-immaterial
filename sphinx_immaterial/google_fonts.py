@@ -42,10 +42,10 @@ _FILE_EXT_PATTERN = re.compile(r".*(\.[^\.]+)")
 
 
 def _extract_urls(css_content: bytes) -> Set[str]:
-    urls = set()
-    for m in _CSS_URL_PATTERN.finditer(css_content.decode("utf-8")):
-        urls.add(m.group(1))
-    return urls
+    return {
+        m.group(1)
+        for m in _CSS_URL_PATTERN.finditer(css_content.decode("utf-8"))
+    }
 
 
 def _adjust_css_urls(css_content: bytes, renamed_fonts: Dict[str, str]) -> str:
@@ -112,10 +112,7 @@ def add_google_fonts(app: sphinx.application.Sphinx, fonts: List[str]):
             for font_url, font_data in all_font_data.items():
                 h = hashlib.sha256(font_data).hexdigest()[:32]
                 m = _FILE_EXT_PATTERN.fullmatch(font_url)
-                if m is not None:
-                    file_ext = m.group(1)
-                else:
-                    file_ext = ""
+                file_ext = m.group(1) if m is not None else ""
                 new_name = h + file_ext
                 renamed_fonts[font_url] = new_name
                 with open(os.path.join(font_dir, new_name), "wb") as f:
@@ -185,10 +182,10 @@ def get_ttf_font_paths(app: sphinx.application.Sphinx) -> Dict[Tuple[str, str], 
 
 
 def _builder_inited(app: sphinx.application.Sphinx):
-    font_options = app.config["html_theme_options"]["font"]
-    if not font_options:
+    if font_options := app.config["html_theme_options"]["font"]:
+        add_google_fonts(app, list(font_options.values()))
+    else:
         return
-    add_google_fonts(app, list(font_options.values()))
 
 
 def setup(app: sphinx.application.Sphinx):

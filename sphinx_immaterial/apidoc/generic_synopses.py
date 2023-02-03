@@ -111,14 +111,14 @@ def _monkey_patch_generic_object_to_support_synopses():
     StandardDomain._resolve_obj_xref = _resolve_obj_xref  # type: ignore[assignment]
 
     def resolve_any_xref(
-        self: StandardDomain,
-        env: sphinx.environment.BuildEnvironment,
-        fromdocname: str,
-        builder: sphinx.builders.Builder,
-        target: str,
-        node: sphinx.addnodes.pending_xref,
-        contnode: docutils.nodes.Element,
-    ) -> List[Tuple[str, docutils.nodes.Element]]:
+            self: StandardDomain,
+            env: sphinx.environment.BuildEnvironment,
+            fromdocname: str,
+            builder: sphinx.builders.Builder,
+            target: str,
+            node: sphinx.addnodes.pending_xref,
+            contnode: docutils.nodes.Element,
+        ) -> List[Tuple[str, docutils.nodes.Element]]:
         results: List[Tuple[str, docutils.nodes.Element]] = []
         ltarget = target.lower()  # :ref: lowercases its target automatically
         for role in ("ref", "option"):  # do not try "keyword"
@@ -132,7 +132,7 @@ def _monkey_patch_generic_object_to_support_synopses():
                 contnode,
             )
             if res:
-                results.append(("std:" + role, res))
+                results.append((f"std:{role}", res))
         # all others
         for objtype in self.object_types:
             key = (objtype, target)
@@ -142,7 +142,7 @@ def _monkey_patch_generic_object_to_support_synopses():
                 docname, labelid = self.objects[key]
                 results.append(
                     (
-                        "std:" + self.role_for_objtype(objtype),
+                        f"std:{self.role_for_objtype(objtype)}",
                         make_refnode(
                             self,
                             builder,

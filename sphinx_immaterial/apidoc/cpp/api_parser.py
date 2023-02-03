@@ -94,10 +94,15 @@ def _combine_regexp_list(items: Sequence[Union[str, Pattern[str]]]) -> re.Patter
 def _make_replacement_pattern(
     strings: List[str], prefix: str, suffix: str
 ) -> re.Pattern:
-    if not strings:
-        return _UNMATCHABLE_REGEXP
-    return re.compile(
-        "|".join(rf"(?:{prefix}{re.escape(before)}{suffix})" for before in strings)
+    return (
+        re.compile(
+            "|".join(
+                rf"(?:{prefix}{re.escape(before)}{suffix})"
+                for before in strings
+            )
+        )
+        if strings
+        else _UNMATCHABLE_REGEXP
     )
 
 
@@ -330,8 +335,7 @@ class Config:
             return mapped
         if os.name == "nt":
             path = path.replace("\\", "/")
-        if path.startswith("./"):
-            path = path[2:]
+        path = path.removeprefix("./")
         new_mapped = self.include_directory_map_pattern.sub(
             lambda m: self.normalized_include_directory_map[m.group(0)], path
         )
@@ -461,7 +465,7 @@ CppApiEntity = Union[
 def json_location_to_string(location: Optional[JsonLocation]) -> Optional[str]:
     if location is None:
         return None
-    return "%s:%s:%s" % (location["file"], location["line"], location["col"])
+    return f'{location["file"]}:{location["line"]}:{location["col"]}'
 
 
 def get_entity_id(cursor: Cursor) -> EntityId:
@@ -516,14 +520,12 @@ def _get_full_nested_name(cursor: typing.Optional[Cursor]) -> str:
     if cursor is None:
         return ""
     ancestors = []
-    while True:
-        if cursor.kind == CursorKind.TRANSLATION_UNIT:
-            break
+    while cursor.kind != CursorKind.TRANSLATION_UNIT:
         if cursor.kind == CursorKind.NAMESPACE:
             name = cursor.spelling
         else:
             name = cursor.displayname
-        ancestors.append(name + "::")
+        ancestors.append(f"{name}::")
         cursor = cursor.semantic_parent
     ancestors.reverse()
     return "".join(ancestors)
@@ -586,7 +588,7 @@ def split_doc_comment_into_lines(cmt: str) -> List[str]:
         ]
         body[-1] = body[-1].rstrip("*/").rstrip()
     body = dedent("\n".join(body)).splitlines()
-    return [""] if not body else body
+    return body or [""]
 
 
 NON_DOC_COMMENT = re.compile(
@@ -676,11 +678,11 @@ class Extractor:
 
         def _allow_file(path: str) -> bool:
             path = config.map_include_path(path)
-            if not config.allow_path_pattern.search(path):
-                return False
-            if config.disallow_path_pattern.search(path):
-                return False
-            return True
+            return (
+                not config.disallow_path_pattern.search(path)
+                if config.allow_path_pattern.search(path)
+                else False
+            )
 
         self.decls = list(
             _get_all_decls(
@@ -808,16 +810,16 @@ def _clang_template_parameter_to_json(config: Config, decl: Cursor):
 def _get_template_parameters(config: Config, decl: Cursor):
     if decl.kind not in TEMPLATE_CURSOR_KINDS:
         return None
-    result = []
-    for child in decl.get_children():
-        if child.kind not in (
+    return [
+        _clang_template_parameter_to_json(config, child)
+        for child in decl.get_children()
+        if child.kind
+        in (
             CursorKind.TEMPLATE_TYPE_PARAMETER,
             CursorKind.TEMPLATE_NON_TYPE_PARAMETER,
             CursorKind.TEMPLATE_TEMPLATE_PARAMETER,
-        ):
-            continue
-        result.append(_clang_template_parameter_to_json(config, child))
-    return result
+        )
+    ]
 
 
 def _get_non_template_kind(cursor: Cursor):
@@ -890,8 +892,7 @@ def _transform_class_decl(config: Config, decl: Cursor) -> ClassEntity:
         "prefix": _parse_declaration_prefix(decl, is_class=True),
         "bases": list(_get_bases(config, decl)),
     }
-    specializes = _get_specialized_cursor_template(decl)
-    if specializes:
+    if specializes := _get_specialized_cursor_template(decl):
         obj["specializes"] = get_entity_id(specializes)
     return obj
 
@@ -962,14 +963,15 @@ def _parse_declaration_prefix(decl: Cursor, is_class: bool) -> typing.List[str]:
         break
 
     if not is_class:
-        for token in decl.translation_unit.get_tokens(
-            extent=SourceRange.from_locations(
-                start_location, end_location or decl_extent.end
+        prefix_parts.extend(
+            token.spelling
+            for token in decl.translation_unit.get_tokens(
+                extent=SourceRange.from_locations(
+                    start_location, end_location or decl_extent.end
+                )
             )
-        ):
-            # skip `inline` since that is not an important part of the API
-            if token.spelling in ("explicit", "constexpr"):
-                prefix_parts.append(token.spelling)
+            if token.spelling in ("explicit", "constexpr")
+        )
     return prefix_parts
 
 
@@ -977,12 +979,14 @@ def _get_declaration_spelling(decl: Cursor) -> str:
     decl_extent = decl.extent
     start_location = decl_extent.start
     end_location = None
-    for child in decl.get_children():
-        if child.kind.is_statement():
-            end_location = child.extent.start
-            break
-    else:
-        end_location = decl_extent.end
+    end_location = next(
+        (
+            child.extent.start
+            for child in decl.get_children()
+            if child.kind.is_statement()
+        ),
+        decl_extent.end,
+    )
     return get_extent_spelling(
         decl.translation_unit,
         extent=SourceRange.from_locations(start_location, end_location),
@@ -1012,9 +1016,7 @@ def _transform_function_decl(config: Config, decl: Cursor):
         source_code = _get_declaration_spelling(decl)
         name_substitute = _pick_name_substitute(source_code)
         decl_string = (
-            "".join(x + " " for x in prefix)
-            + name_substitute
-            + "("
+            (("".join(f"{x} " for x in prefix) + name_substitute) + "(")
             + ", ".join(
                 get_extent_spelling(decl.translation_unit, arg.extent)
                 for arg in _get_function_parameters(decl)
@@ -1059,20 +1061,18 @@ def _transform_enum_decl(config: Config, decl: Cursor) -> EnumEntity:
         keyword = cast(ClassKeyword, token1_spelling)
 
     name = decl.spelling
-    enumerators: List[EnumeratorEntity] = []
-    for child in decl.get_children():
-        if child.kind != CursorKind.ENUM_CONSTANT_DECL:
-            continue
-        enumerators.append(
-            {
-                "kind": "enumerator",
-                "id": get_entity_id(child),
-                "name": child.spelling,
-                "decl": get_extent_spelling(decl.translation_unit, child.extent),
-                "doc": get_doc_comment(config, child),
-                "location": _get_location_json(config, child.location),
-            }
-        )
+    enumerators: List[EnumeratorEntity] = [
+        {
+            "kind": "enumerator",
+            "id": get_entity_id(child),
+            "name": child.spelling,
+            "decl": get_extent_spelling(decl.translation_unit, child.extent),
+            "doc": get_doc_comment(config, child),
+            "location": _get_location_json(config, child.location),
+        }
+        for child in decl.get_children()
+        if child.kind == CursorKind.ENUM_CONSTANT_DECL
+    ]
     return {
         "kind": "enum",
         "keyword": keyword,
@@ -1162,7 +1162,7 @@ def _substitute_name(
 
 def _maybe_wrap_requires_expr_in_parentheses(expr: str) -> str:
     parser = sphinx.domains.cpp.DefinitionParser(
-        "requires " + expr,
+        f"requires {expr}",
         location=("", 0),
         config=cast(sphinx.config.Config, SphinxConfig()),
     )
@@ -1188,11 +1188,7 @@ def _extract_requires_from_enable_if_t_type(
         return None
     template_args = trailing_type_spec.name.names[1].templateArgs.args  # type: ignore[attr-defined]
     requires_expr = str(template_args[0])
-    if len(template_args) == 2:
-        result_type = str(template_args[1])
-    else:
-        result_type = "void"
-
+    result_type = str(template_args[1]) if len(template_args) == 2 else "void"
     parser = sphinx.domains.cpp.DefinitionParser(
         result_type, location=("", 0), config=cast(sphinx.config.Config, SphinxConfig())
     )
@@ -1459,8 +1455,7 @@ def _merge_decl_json(existing_json, new_json):
     if existing_json["doc"] and new_json["doc"]:
         raise ValueError("Duplicate doc strings: %r and %r" % (existing_json, new_json))
     existing_json["doc"] = existing_json["doc"] or new_json["doc"]
-    template_parameters = existing_json.get("template_parameters")
-    if template_parameters:
+    if template_parameters := existing_json.get("template_parameters"):
         new_template_parameters = new_json.get("template_parameters")
         for i, old_param in enumerate(template_parameters):
             new_param = new_template_parameters[i]
@@ -1532,15 +1527,7 @@ class JsonApiGenerator:
         doc = get_doc_comment(self.config, decl)
         document_with = None
         location = _get_location_json(self.config, decl.location)
-        if not doc:
-            if self._prev_decl is not None and _is_immediately_after(
-                decl, self._prev_decl[0]
-            ):
-                document_with = self._resolve_document_with(self._prev_decl[1]["id"])
-            else:
-                # Exclude undocumented entities
-                return None
-        else:
+        if doc:
             if (
                 self._prev_decl is not None
                 and self._prev_decl[1]["location"] == location
@@ -1550,6 +1537,13 @@ class JsonApiGenerator:
                 #
                 # Document as a sibling of the previous declaration.
                 document_with = self._resolve_document_with(self._prev_decl[1]["id"])
+        elif self._prev_decl is not None and _is_immediately_after(
+                decl, self._prev_decl[0]
+            ):
+            document_with = self._resolve_document_with(self._prev_decl[1]["id"])
+        else:
+            # Exclude undocumented entities
+            return None
         transformer = TRANSFORMERS.get(decl.kind)
         if transformer is None:
             return None
@@ -1582,8 +1576,7 @@ class JsonApiGenerator:
                 json_repr["document_with"] = document_with
         extent = decl.extent
         json_repr["location"] = location
-        nonitpick = get_nonitpick_directives(decl)
-        if nonitpick:
+        if nonitpick := get_nonitpick_directives(decl):
             json_repr["nonitpick"] = nonitpick
         json_repr["doc"] = doc
         if decl.kind != CursorKind.UNEXPOSED_DECL:
@@ -1633,7 +1626,9 @@ def _parse_template_parameter(
     # `_parse_template_parameter` fails if the parameter is not followed by "," or
     # ">".
     parser = sphinx.domains.cpp.DefinitionParser(
-        decl + ">", location=("", 0), config=cast(sphinx.config.Config, SphinxConfig())
+        f"{decl}>",
+        location=("", 0),
+        config=cast(sphinx.config.Config, SphinxConfig()),
     )
     parser.allowFallbackExpressionParsing = False
     try:
@@ -1657,10 +1652,7 @@ def _extract_sfinae_replacement(template_parameter: str) -> Optional[Tuple[str, 
 
     if isinstance(param, sphinx.domains.cpp.ASTTemplateParamType):
         default_type = param.data.default
-        if default_type is None:
-            return None
-        return (name, str(default_type))
-
+        return None if default_type is None else (name, str(default_type))
     if isinstance(param, sphinx.domains.cpp.ASTTemplateParamNonType):
         default_value: Optional[sphinx.domains.cpp.ASTBase] = param.param.init
         if default_value is None:
@@ -1872,9 +1864,11 @@ def _make_explicit_conditional(decl: str, explicit: str) -> str:
 def _is_uniform_binary_expr(
     expr: sphinx.domains.cpp.ASTBase, allowed_ops: Tuple[str, ...]
 ) -> bool:
-    if not isinstance(expr, sphinx.domains.cpp.ASTBinOpExpr):
-        return False
-    return all(op in allowed_ops for op in expr.ops)
+    return (
+        all(op in allowed_ops for op in expr.ops)
+        if isinstance(expr, sphinx.domains.cpp.ASTBinOpExpr)
+        else False
+    )
 
 
 def _is_logical_and_expr(expr: sphinx.domains.cpp.ASTBase) -> bool:
@@ -1897,7 +1891,7 @@ def _normalize_requires_terms(terms: List[str]) -> List[str]:
         return terms
     expr = " && ".join(f"({term})" for term in terms)
     parser = sphinx.domains.cpp.DefinitionParser(
-        "requires " + expr,
+        f"requires {expr}",
         location=("", 0),
         config=cast(sphinx.config.Config, SphinxConfig()),
     )
@@ -2169,14 +2163,12 @@ def organize_entities(
     def _parse_entity_doc(entity: CppApiEntity):
         doc = entity["doc"]
         if doc is None:
-            if _handle_document_with(entity):
-                return True
-            return False
+            return bool(_handle_document_with(entity))
         doc_text = doc["text"]
         for m in SPECIAL_GROUP_COMMAND_PATTERN.finditer(doc_text):
-            entity[cast(Literal["special_id"], "special_" + m.group(1))] = m.group(
-                2
-            ).strip()
+            entity[
+                cast(Literal["special_id"], f"special_{m.group(1)}")
+            ] = m.group(2).strip()
         return True
 
     def get_entity_scope(entity: CppApiEntity) -> str:
@@ -2212,14 +2204,12 @@ def organize_entities(
     names: Dict[str, EntityId] = {}
 
     def resolve_entity_name(
-        scope: str, relative_entity_name: str
-    ) -> Optional[EntityId]:
+            scope: str, relative_entity_name: str
+        ) -> Optional[EntityId]:
         if relative_entity_name.startswith("::"):
             resolved = relative_entity_name[2:]
             entity_id = names.get(resolved)
-            if entity_id is None:
-                return None
-            return entity_id
+            return None if entity_id is None else entity_id
         truncate_idx = len(scope)
         while True:
             full_name = scope[:truncate_idx] + relative_entity_name
@@ -2232,7 +2222,7 @@ def organize_entities(
             if truncate_idx == -1:
                 truncate_idx = 0
             else:
-                truncate_idx = truncate_idx + 2
+                truncate_idx += 2
 
     must_resolve_specializes: List[CppApiEntity] = []
 

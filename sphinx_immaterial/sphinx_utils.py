@@ -108,7 +108,7 @@ def append_directive_to_stringlist(
         if i == 1:
             prefix = " " * len(prefix)
         out.append(prefix + signature, source_path, source_line)
-    content_indent_str = base_indent_str + "   "
+    content_indent_str = f"{base_indent_str}   "
     if options:
         for key, value in options.items():
             if value is False or value is None:  # pylint: disable=g-bool-id-comparison

@@ -131,7 +131,7 @@ def _config_inited(
     setattr(
         app,
         C_MACRO_PATTERN_ATTR,
-        re.compile("(?:" + c_macro_pattern + ")(?:::[a-zA-Z0-9_]+)?"),
+        re.compile(f"(?:{c_macro_pattern})(?:::[a-zA-Z0-9_]+)?"),
     )
 
 

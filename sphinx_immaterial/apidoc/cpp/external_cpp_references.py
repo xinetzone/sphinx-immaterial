@@ -51,7 +51,7 @@ def _strip_template_arguments(s: str) -> Optional[str]:
             break
         if not nested:
             retained_parts.append(s[prev_index : m.start()])
-        ch = m.group(0)
+        ch = m[0]
         if nested and ch == nested[-1]:
             del nested[-1]
             prev_index = m.end()

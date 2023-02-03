@@ -125,8 +125,7 @@ class CppApiData:
 
     def get_entity_object_name(self, entity: CppApiEntity) -> str:
         name = self.get_entity_scope(entity) + entity["name"]
-        special_id = entity.get("special_id")
-        if special_id:
+        if special_id := entity.get("special_id"):
             name += f"[{special_id}]"
         return name
 
@@ -164,7 +163,10 @@ def _get_cpp_api_data(
         for group_id, group in json_data["groups"].items():
             data.groups.setdefault(group_id, []).extend(group)
         data.nonitpick.update(
-            set((x["target"], x["file"], x["line"]) for x in json_data["nonitpick"])
+            {
+                (x["target"], x["file"], x["line"])
+                for x in json_data["nonitpick"]
+            }
         )
 
         if warn:
@@ -196,9 +198,7 @@ def _transform_doc_comment(
     lineno = location["line"]
 
     if summary:
-        # Find first blank line
-        first_blank_line = re.search(r"^\s*$", text, flags=re.MULTILINE)
-        if first_blank_line:
+        if first_blank_line := re.search(r"^\s*$", text, flags=re.MULTILINE):
             text = text[: first_blank_line.start()]
 
     out = docutils.statemachine.StringList()
@@ -224,8 +224,7 @@ def _format_template_parameters(entity: CppApiEntity) -> str:
         return ""
     tparam_list_str = ", ".join(x["declaration"] for x in template_parameters)
     tparams = f"template <{tparam_list_str}> "
-    requires = entity.get("requires")
-    if requires:
+    if requires := entity.get("requires"):
         requires_expr = " && ".join(requires)
         tparams += f"requires {requires_expr} "
     return tparams
@@ -273,18 +272,20 @@ def _strip_template_parameters(
     cur_entity = entity
     strip_leading: List[str] = []
     strip_trailing: List[str] = []
-    if strip_self_parameters:
-        if entity.get("requires") and entity.get("template_parameters") is None:
-            strip_trailing.append("trailingRequiresClause")
+    if (
+        strip_self_parameters
+        and cur_entity.get("requires")
+        and cur_entity.get("template_parameters") is None
+    ):
+        strip_trailing.append("trailingRequiresClause")
     depth = 0
-    while True:
-        if depth > 0 and not strip_ancestors_parameters:
-            break
-        if depth > 0 or strip_self_parameters:
-            if cur_entity.get("template_parameters") is not None:
-                strip_leading.append("templateParams")
-                if cur_entity.get("requires"):
-                    strip_leading.append("requiresClause")
+    while depth <= 0 or strip_ancestors_parameters:
+        if (depth > 0 or strip_self_parameters) and cur_entity.get(
+            "template_parameters"
+        ) is not None:
+            strip_leading.append("templateParams")
+            if cur_entity.get("requires"):
+                strip_leading.append("requiresClause")
         depth += 1
         parent_id = cur_entity.get("parent")
         if parent_id is None:
@@ -344,10 +345,9 @@ def _format_entity_class(
 ) -> Tuple[str, str]:
     prefix = " ".join(entity["prefix"])
     signature = f"{prefix} {full_name}"
-    base_strs = []
-    for base in entity["bases"]:
-        base_strs.append(f'{base["access"]} {base["type"]}')
-    if base_strs:
+    if base_strs := [
+        f'{base["access"]} {base["type"]}' for base in entity["bases"]
+    ]:
         signature += " : "
         signature += ", ".join(base_strs)
 
@@ -424,7 +424,7 @@ def _format_trailing_requires(entity: CppApiEntity, summary: bool) -> str:
     requires = entity.get("requires")
     if template_parameters is not None or not requires:
         return ""
-    return " requires " + " && ".join(expr for expr in requires)
+    return " requires " + " && ".join(requires)
 
 
 def _format_entity(
@@ -487,11 +487,7 @@ def _add_entity_description(
     out = docutils.statemachine.StringList()
     location = entity["location"]
     parent_id = entity.get("parent")
-    if parent_id and summary:
-        include_scope = False
-    else:
-        include_scope = True
-
+    include_scope = not parent_id or not summary
     if parent_id:
         parent = api_data.entities[parent_id]
         scope_template_prefix = _format_template_prefix(
@@ -506,7 +502,7 @@ def _add_entity_description(
     sphinx_utils.append_directive_to_stringlist(
         out,
         "cpp:namespace",
-        scope_template_prefix + scope if not include_scope else "nullptr",
+        "nullptr" if include_scope else scope_template_prefix + scope,
         source_path=location["file"],
         source_line=location["line"] - 1,
     )
@@ -600,7 +596,7 @@ def _add_entity_description(
                 desc_name_node.deepcopy(),
                 refdomain="std",
                 reftype="doc",
-                reftarget="/" + api_data.get_entity_page_path(entity),
+                reftarget=f"/{api_data.get_entity_page_path(entity)}",
                 refwarn=True,
                 refexplicit=True,
             )
