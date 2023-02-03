@@ -103,7 +103,7 @@ def _monkey_patch_python_domain_to_support_synopses():
         for signode in cast(List[docutils.nodes.Element], signodes):
             modname = signode["module"]
             fullname = signode["fullname"]
-            symbol = (modname + "." if modname else "") + fullname
+            symbol = (f"{modname}." if modname else "") + fullname
             symbols.append(symbol)
 
         if not symbols:

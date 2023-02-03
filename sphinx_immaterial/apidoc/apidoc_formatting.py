@@ -140,7 +140,7 @@ def visit_productionlist(
         "</pre>"
     )
     self.body[before_len] += "<code>"
-    self.body[-1] = "</code>" + self.body[-1]
+    self.body[-1] = f"</code>{self.body[-1]}"
     raise docutils.nodes.SkipNode()
 
 

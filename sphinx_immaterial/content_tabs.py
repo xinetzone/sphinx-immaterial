@@ -14,9 +14,7 @@ LOGGER = getLogger(__name__)
 
 def is_md_tab_type(node: nodes.Node, name: str):
     """Check if a node is a certain tabbed component."""
-    if not isinstance(node, nodes.Element):
-        return False
-    return node.get("type") == name
+    return node.get("type") == name if isinstance(node, nodes.Element) else False
 
 
 class content_tab_set(nodes.container):
@@ -139,16 +137,19 @@ def visit_tab_set(self: HTMLTranslator, node: content_tab_set):
             tab_label, tab_block = tab_item.children
         except ValueError as exc:
             raise ValueError(f"md-tab-item has no children:\n{repr(tab_item)}") from exc
-        tab_item_identity = tab_set_identity + f"_{tab_count + 1}"
+        tab_item_identity = f"{tab_set_identity}_{tab_count + 1}"
 
         assert isinstance(tab_label, nodes.Element)
 
         # create: <input checked="checked" id="id" type="radio">
         self.body.append(
-            "<input "
-            + ("checked " if not tab_count else "")
-            + f'type="radio" id="{self.attval(tab_item_identity)}"'
-            + f' name="{self.attval(tab_set_identity)}">'
+            (
+                (
+                    ("<input " + ("" if tab_count else "checked "))
+                    + f'type="radio" id="{self.attval(tab_item_identity)}"'
+                )
+                + f' name="{self.attval(tab_set_identity)}">'
+            )
         )
 
         # create: <label for="id">...</label>

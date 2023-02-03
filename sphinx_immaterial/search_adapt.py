@@ -68,10 +68,7 @@ class IndexBuilder(sphinx.search.IndexBuilder):
         synopses = _get_all_synopses(self.env)
 
         for prefix, prefix_value in rv.items():
-            if prefix:
-                name_prefix = prefix + "."
-            else:
-                name_prefix = ""
+            name_prefix = f"{prefix}." if prefix else ""
             if sphinx.version_info >= (4, 3):
                 # From sphinx 4.3 onwards the children dict is now a list
                 children = prefix_value
@@ -100,15 +97,15 @@ class IndexBuilder(sphinx.search.IndexBuilder):
 
                 anchor = shortanchor
                 key = (docname, anchor, domain_name, objtype)
-                if shortanchor == "":
+                if anchor == "":
                     # The anchor could either be the actual empty string, or `full_name`.
                     if key not in all_objs:
                         # Anchor is probably `full_name`
                         anchor = full_name
-                elif shortanchor == "-":
+                elif anchor == "-":
                     # The anchor could either by "-" or `objtype+"-"+full_name`
                     if key not in all_objs:
-                        anchor = objtype + "-" + full_name
+                        anchor = f"{objtype}-{full_name}"
 
                 key = (docname, anchor, domain_name, objtype)
                 if key not in all_objs:
@@ -126,7 +123,7 @@ class IndexBuilder(sphinx.search.IndexBuilder):
                 new_shortanchor: Union[int, str]
                 if anchor == full_name:
                     new_shortanchor = 0
-                elif anchor == objtype + "-" + full_name:
+                elif anchor == f"{objtype}-{full_name}":
                     new_shortanchor = 1
                 else:
                     new_shortanchor = anchor
@@ -184,7 +181,7 @@ class IndexBuilder(sphinx.search.IndexBuilder):
         docnames = []
         filenames = []
         for url in docurls:
-            docname = url_to_docname.get(url, None)
+            docname = url_to_docname.get(url)
             if docname is None:
                 docnames.append(url)
                 filenames.append(url)

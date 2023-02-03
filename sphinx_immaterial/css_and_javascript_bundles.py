@@ -101,7 +101,7 @@ def generate_bundle(
     output_path_obj = static_dir / output_path
     output_path_obj.parent.mkdir(parents=True, exist_ok=True)
     if sourcemap_sections and getattr(app.config, _BUNDLE_SOURCE_MAPS_KEY):
-        sourcemap_path = output_path + ".map"
+        sourcemap_path = f"{output_path}.map"
         (static_dir / sourcemap_path).write_text(
             json.dumps({"version": 3, "sections": sourcemap_sections}),
             encoding="utf-8",

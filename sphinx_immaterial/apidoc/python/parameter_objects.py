@@ -103,14 +103,10 @@ def _monkey_patch_python_domain_to_store_func_in_ref_context():
         setattr(
             self, "_prev_ref_context_py_func", self.env.ref_context.get("py:func", None)
         )
-        if self.names:
-            fullname = self.names[-1][0]
-        else:
-            fullname = None
-
+        fullname = self.names[-1][0] if self.names else None
         if fullname:
             classname = self.env.ref_context.get("py:class")
-            if classname and fullname.startswith(classname + "."):
+            if classname and fullname.startswith(f"{classname}."):
                 fullname = fullname[len(classname) + 1 :]
             self.env.ref_context["py:func"] = fullname
         else:
@@ -142,19 +138,19 @@ def _monkey_patch_python_domain_to_resolve_params():
     orig_resolve_xref = PythonDomain.resolve_xref
 
     def resolve_xref(
-        self: PythonDomain,
-        env: sphinx.environment.BuildEnvironment,
-        fromdocname: str,
-        builder: sphinx.builders.Builder,
-        typ: str,
-        target: str,
-        node: sphinx.addnodes.pending_xref,
-        contnode: docutils.nodes.Element,
-    ) -> Optional[docutils.nodes.Element]:
+            self: PythonDomain,
+            env: sphinx.environment.BuildEnvironment,
+            fromdocname: str,
+            builder: sphinx.builders.Builder,
+            typ: str,
+            target: str,
+            node: sphinx.addnodes.pending_xref,
+            contnode: docutils.nodes.Element,
+        ) -> Optional[docutils.nodes.Element]:
         if typ == "param":
             func_name = node.get("py:func")
             if func_name and "." not in target:
-                target = "%s.%s" % (func_name, target)
+                target = f"{func_name}.{target}"
         result = orig_resolve_xref(
             self, env, fromdocname, builder, typ, target, node, contnode
         )
@@ -296,8 +292,8 @@ def _add_parameter_documentation_ids(
     py = cast(sphinx.domains.python.PythonDomain, env.get_domain("py"))
 
     def cross_link_single_parameter(
-        param_name: str, param_node: docutils.nodes.term
-    ) -> None:
+            param_name: str, param_node: docutils.nodes.term
+        ) -> None:
         # Determine the number of unique declarations of this parameter.
         #
         # If this single object description has multiple signatures, the same
@@ -383,7 +379,7 @@ def _add_parameter_documentation_ids(
                 if i != 0:
                     del new_param_node["ids"][:]
                 source, line = docutils.utils.get_source_line(desc_param_node)
-                new_children = list(c.deepcopy() for c in desc_param_node.children)
+                new_children = [c.deepcopy() for c in desc_param_node.children]
                 new_param_node.extend(new_children)
                 for child in new_children:
                     child.source = source
@@ -434,19 +430,10 @@ def _cross_link_parameters(
     env = app.env
     assert isinstance(env, sphinx.environment.BuildEnvironment)
 
-    # Collect the docutils nodes corresponding to the declarations of the
-    # parameters in each signature, and turn the parameter names into
-    # cross-links to the parameter description.
-    #
-    # In the parameter descriptions, these declarations will be copied in to
-    # replace the bare parameter name so that the parameter description shows
-    # e.g. `x : int = 10` rather than just `x`.
-    sig_param_nodes_for_signature = []
-    for signode, symbol in zip(signodes, symbols):
-        sig_param_nodes_for_signature.append(
-            _add_parameter_links_to_signature(env, signode, symbol)
-        )
-
+    sig_param_nodes_for_signature = [
+        _add_parameter_links_to_signature(env, signode, symbol)
+        for signode, symbol in zip(signodes, symbols)
+    ]
     # Find all parameter descriptions in the object description body, and mark
     # them as the target for cross links to that parameter.  Also substitute in
     # the parameter declaration for the bare parameter name, as described above.
@@ -479,7 +466,7 @@ def _monkey_patch_python_domain_to_cross_link_parameters():
         for signode in cast(List[docutils.nodes.Element], signodes):
             modname = signode["module"]
             fullname = signode["fullname"]
-            symbol = (modname + "." if modname else "") + fullname
+            symbol = (f"{modname}." if modname else "") + fullname
             symbols.append(symbol)
 
         if not symbols:

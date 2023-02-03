@@ -27,12 +27,11 @@ class kbd_node(nodes.TextElement):
 def map_filter(key: str, user_map: dict) -> Tuple[str, str]:
     display = key.title()
     cls = key.replace("_", "-").replace(" ", "-").lower()
-    if key in user_map.keys():
+    if key in user_map:
         display = user_map[key]
-    if HAS_DB:
-        if key in keys_db.aliases:
-            display = keys_db.keymap[keys_db.aliases[key]]
-            cls = keys_db.aliases[key]
+    if HAS_DB and key in keys_db.aliases:
+        display = keys_db.keymap[keys_db.aliases[key]]
+        cls = keys_db.aliases[key]
     return (cls, display)
 
 

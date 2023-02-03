@@ -84,7 +84,7 @@ def _monkey_patch_html_translator(translator_class):
             node,
             "code",
             suffix="",
-            CLASS="docutils literal highlight highlight-%s" % lang,
+            CLASS=f"docutils literal highlight highlight-{lang}",
         )
         self.body.append(starttag + highlighted.strip() + "</code>")
         raise docutils.nodes.SkipNode

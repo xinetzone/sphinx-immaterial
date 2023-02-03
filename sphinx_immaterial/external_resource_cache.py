@@ -47,9 +47,7 @@ def get_url(
     temp_name = None
 
     try:
-        with tempfile.NamedTemporaryFile(
-            dir=cache_dir, suffix=".tmp", prefix=req_key + ".request.", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(dir=cache_dir, suffix=".tmp", prefix=f"{req_key}.request.", delete=False) as f:
             temp_name = f.name
             f.write(response_content)
         os.replace(temp_name, resp_path)

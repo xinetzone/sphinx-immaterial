@@ -47,9 +47,7 @@ def _monkey_patch_cpp_domain_symbol_resolution_through_type_aliases():
             searchInSiblings=False,
             templateShorthand=True,
         )
-        if symbols:
-            return symbols[0]
-        return None
+        return symbols[0] if symbols else None
 
     def resolve_alias_or_base_type(self) -> Iterator["Symbol"]:
         resolved = resolve_type_alias(self)

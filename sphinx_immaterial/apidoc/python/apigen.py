@@ -123,7 +123,7 @@ def _extract_field(doc: str, field: str) -> Tuple[str, Optional[str]]:
     if m is None:
         return doc, None
     start, end = m.span()
-    return f"{doc[:start]}\n\n{doc[end:]}", m.group(1).strip()
+    return f"{doc[:start]}\n\n{doc[end:]}", m[1].strip()
 
 
 _OVERLOADED_FUNCTION_RE = "^([^(]+)\\([^\n]*\nOverloaded function.\n"
@@ -148,7 +148,7 @@ def _parse_overloaded_function_docstring(doc: Optional[str]) -> List[ParsedOverl
         doc, overload_id = _extract_field(doc, "Overload")
         return [ParsedOverload(doc=doc, overload_id=overload_id)]
 
-    display_name = m.group(1)
+    display_name = m[1]
     doc = doc[m.end() :]
     i = 1
 
@@ -208,10 +208,10 @@ def _get_overloads_from_documenter(
 
 
 def _has_default_value(node: sphinx.addnodes.desc_parameter):
-    for sub_node in node.findall(condition=docutils.nodes.literal):
-        if "default_value" in sub_node.get("classes"):
-            return True
-    return False
+    return any(
+        "default_value" in sub_node.get("classes")
+        for sub_node in node.findall(condition=docutils.nodes.literal)
+    )
 
 
 def _summarize_signature(
@@ -354,7 +354,7 @@ class _ApiEntity:
 
 
 def _is_constructor_name(name: str) -> bool:
-    return name in ("__init__", "__new__", "__class_getitem__")
+    return name in {"__init__", "__new__", "__class_getitem__"}
 
 
 class _ApiData:
@@ -383,7 +383,7 @@ class _ApiData:
         if _is_constructor_name(entity.documented_name):
             full_name = full_name[: -len(entity.documented_name) - 1]
         module = entity.options.get("module")
-        if module is not None and full_name.startswith(module + "."):
+        if module is not None and full_name.startswith(f"{module}."):
             # Strip module name, since it is specified separately.
             full_name = full_name[len(module) + 1 :]
         return full_name
@@ -394,9 +394,7 @@ class _ApiData:
         def get_key(member: _ApiEntityMemberReference):
             member_entity = self.entities[member.canonical_object_name]
             order = member_entity.order or 0
-            if alphabetical:
-                return (order, member.name.lower(), member.name)
-            return order
+            return (order, member.name.lower(), member.name) if alphabetical else order
 
         members.sort(key=get_key)
 
@@ -412,8 +410,8 @@ def _ensure_module_name_in_signature(signode: sphinx.addnodes.desc_signature) ->
     """
     for node in signode.findall(condition=sphinx.addnodes.desc_addname):
         modname = signode.get("module")
-        if modname and not node.astext().startswith(modname + "."):
-            node.insert(0, docutils.nodes.Text(modname + "."))
+        if modname and not node.astext().startswith(f"{modname}."):
+            node.insert(0, docutils.nodes.Text(f"{modname}."))
         break
 
 
@@ -521,11 +519,11 @@ def _generate_entity_desc_node(
     name = api_data.get_name_for_signature(entity, member)
 
     def object_description_transform(
-        app: sphinx.application.Sphinx,
-        domain: str,
-        objtype: str,
-        contentnode: sphinx.addnodes.desc_content,
-    ) -> None:
+            app: sphinx.application.Sphinx,
+            domain: str,
+            objtype: str,
+            contentnode: sphinx.addnodes.desc_content,
+        ) -> None:
         env = app.env
         assert env is not None
 
@@ -538,7 +536,7 @@ def _generate_entity_desc_node(
         for signode in signodes:
             fullname = signode["fullname"]
             modname = signode["module"]
-            object_name = (modname + "." if modname else "") + fullname
+            object_name = (f"{modname}." if modname else "") + fullname
             if object_name != entity.object_name:
                 # This callback may be invoked for additional members
                 # documented within the body of `entry`, but we don't want
@@ -680,9 +678,7 @@ def _generate_group_summary(
     for member in members:
         member_entity = data.entities[member.canonical_object_name]
         include_in_toc = True
-        if notoc is True:
-            include_in_toc = False
-        elif member is not member_entity.parents[0]:
+        if notoc is True or member is not member_entity.parents[0]:
             include_in_toc = False
         node = _generate_entity_summary(
             env=env, member=member, state=state, include_in_toc=include_in_toc
@@ -747,11 +743,11 @@ def _merge_summary_nodes_into(
         group names.
     """
 
-    sections: Dict[str, docutils.nodes.section] = {}
-    for section in contentnode.findall(condition=docutils.nodes.section):
-        if section["ids"]:
-            sections[section["ids"][0]] = section
-
+    sections: Dict[str, docutils.nodes.section] = {
+        section["ids"][0]: section
+        for section in contentnode.findall(condition=docutils.nodes.section)
+        if section["ids"]
+    }
     # Maps group name to the list of members.
     groups: Dict[str, List[_ApiEntityMemberReference]] = {}
 
@@ -982,14 +978,13 @@ def _get_member_documenter(
         return None
     # prefer the documenter with the highest priority
     classes.sort(key=lambda cls: cls.priority)
-    full_mname = parent.modname + "::" + ".".join(parent.objpath + [member_name])
-    documenter = _create_documenter(
+    full_mname = f"{parent.modname}::" + ".".join(parent.objpath + [member_name])
+    return _create_documenter(
         env=parent.env,
         documenter_cls=classes[-1],
         name=full_mname,
         tab_width=parent.directive.state.document.settings.tab_width,
     )
-    return documenter
 
 
 def _include_member(member_name: str, member_value: Any, is_attr: bool) -> bool:
@@ -1005,7 +1000,7 @@ def _include_member(member_name: str, member_value: Any, is_attr: bool) -> bool:
         doc = getattr(member_value, "__doc__", None)
         if isinstance(doc, str) and doc.startswith("Initialize self. "):
             return False
-    elif member_name in ("__hash__", "__iter__"):
+    elif member_name in {"__hash__", "__iter__"}:
         if member_value is None:
             return False
     return True
@@ -1049,10 +1044,7 @@ def _get_subscript_method(
     if not mem:
         return None
     getitem = getattr(mem, "__getitem__", None)
-    if getitem is None:
-        return None
-
-    return mem
+    return None if getitem is None else mem
 
 
 def _transform_member(
@@ -1081,7 +1073,7 @@ def _transform_member(
         if method is None:
             continue
         import_name = f"{retann}.{suffix}"
-        if import_name.startswith(entry.documenter.modname + "."):
+        if import_name.startswith(f"{entry.documenter.modname}."):
             import_name = (
                 entry.documenter.modname
                 + "::"
@@ -1194,7 +1186,7 @@ def _get_member_overloads(
             doc = new_entry.documenter.get_doc()
             if not doc:
                 continue
-            if not any(x for x in doc):
+            if not any(doc):
                 # No docstring, skip.
                 continue
 
@@ -1338,8 +1330,8 @@ def _split_autodoc_rst_output(
 ) -> SplitAutodocRstOutput:
     m = re.fullmatch(r"\.\. ([^:]+:[^:]+):: (.*)", rst_strings[1], re.DOTALL)
     assert m is not None, repr(rst_strings[1])
-    directive = m.group(1)
-    signatures = [m.group(2)]
+    directive = m[1]
+    signatures = [m[2]]
     signature_prefix = " " * (6 + len(directive))
     i = 2
     while i < len(rst_strings):
@@ -1355,7 +1347,7 @@ def _split_autodoc_rst_output(
         m = re.fullmatch(r"   :([^:]+):(.*)", line, re.DOTALL)
         if m is None:
             break
-        options[m.group(1)] = m.group(2).strip()
+        options[m[1]] = m[2].strip()
         i += 1
     assert i < len(rst_strings)
     assert rst_strings[i] == ""
@@ -1590,11 +1582,11 @@ def _assign_documented_full_names(
 
         def parent_sort_key(parent_ref: _ApiEntityMemberReference):
             canonical_name_from_parent = (
-                parent_ref.parent_canonical_object_name + "." + parent_ref.name
+                f"{parent_ref.parent_canonical_object_name}.{parent_ref.name}"
             )
             canonical = canonical_name_from_parent == entity.canonical_full_name
             inherited = parent_ref.inherited
-            return (canonical is False, inherited, canonical_name_from_parent)
+            return not canonical, inherited, canonical_name_from_parent
 
         parents.sort(key=parent_sort_key)
 
@@ -1608,7 +1600,7 @@ def _assign_documented_full_names(
         else:
             parent_documented_name = get_documented_full_name(parent_entity)
             entity.options["module"] = parent_entity.options["module"]
-        documented_full_name = parent_documented_name + "." + parent_ref.name
+        documented_full_name = f"{parent_documented_name}.{parent_ref.name}"
         entity.documented_full_name = documented_full_name
         entity.documented_name = parent_ref.name
 
@@ -1731,8 +1723,8 @@ def _monkey_patch_napoleon_to_add_group_field():
     )  # pylint: disable=protected-access
 
     def parse_section(
-        self: sphinx.ext.napoleon.docstring.GoogleDocstring, section: str
-    ) -> List[str]:
+            self: sphinx.ext.napoleon.docstring.GoogleDocstring, section: str
+        ) -> List[str]:
         lines = self._strip_empty(
             self._consume_to_next_section()
         )  # pylint: disable=protected-access
@@ -1740,7 +1732,7 @@ def _monkey_patch_napoleon_to_add_group_field():
         name = section.lower()
         if len(lines) != 1:
             raise ValueError(f"Expected exactly one {name} in {section} section")
-        return [f":{name}: " + lines[0], ""]
+        return [f":{name}: {lines[0]}", ""]
 
     def load_custom_sections(
         self: sphinx.ext.napoleon.docstring.GoogleDocstring,
